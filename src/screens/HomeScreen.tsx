@@ -1,3 +1,4 @@
+
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Header } from "../components/Header";
@@ -18,6 +19,7 @@ import { filterBooks, PriceRange } from "../utils/filters";
 import { TabScreenProps } from "../navigation/types";
 import { Book, Category } from "../types";
 import { colors } from "../theme";
+import { showMessage } from "../utils/dialog";
 
 export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
   const { totalQuantity } = useCart();
@@ -28,22 +30,27 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  // Trạng thái kéo để làm mới
+  const [refreshing, setRefreshing] = useState(false);
+
   // --- bộ lọc ---
   const [searchOpen, setSearchOpen] = useState(false);
   const [keyword, setKeyword] = useState("");
   const [categoryId, setCategoryId] = useState<number | null>(null);
   const [priceRange, setPriceRange] = useState<PriceRange>(null);
-  const debouncedKeyword = useDebounce(keyword, 400); // gõ xong 400ms mới lọc
+  const debouncedKeyword = useDebounce(keyword, 400);
 
-  // TODO BT9.6: kéo-để-làm-mới. Tạo state `refreshing` + hàm onRefresh gọi lại getBooks/getCategories (Promise.all)
-  // KHÔNG bật màn loading toàn trang (giữ danh sách đang hiển thị). Rồi truyền refreshing/onRefresh cho <BookGrid>
-  // (BookGrid đã nhận sẵn 2 prop này).
+  // Tải dữ liệu lần đầu
   const load = useCallback(async () => {
     setLoading(true);
     setError(null);
+
     try {
-      // Gọi SONG SONG 2 API
-      const [bookList, categoryList] = await Promise.all([getBooks(), getCategories()]);
+      const [bookList, categoryList] = await Promise.all([
+        getBooks(),
+        getCategories(),
+      ]);
+
       setBooks(bookList);
       setCategories(categoryList);
     } catch (e) {
@@ -53,13 +60,33 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
     }
   }, []);
 
+  // Kéo xuống để tải lại dữ liệu
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+
+    try {
+      const [bookList, categoryList] = await Promise.all([
+        getBooks(),
+        getCategories(),
+      ]);
+
+      setBooks(bookList);
+      setCategories(categoryList);
+    } catch (e) {
+      showMessage("Không thể làm mới", getErrorMessage(e));
+    } finally {
+      setRefreshing(false);
+    }
+  }, []);
+
   useEffect(() => {
     load();
   }, [load]);
 
-  // Tab "Danh mục" gửi categoryId qua route.params → áp dụng rồi xoá param
+  // Tab "Danh mục" gửi categoryId qua route.params
   useEffect(() => {
     const id = route.params?.categoryId;
+
     if (id !== undefined) {
       setCategoryId(id);
       navigation.setParams({ categoryId: undefined });
@@ -67,11 +94,18 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
   }, [route.params?.categoryId, navigation]);
 
   const visibleBooks = useMemo(
-    () => filterBooks(books, { keyword: debouncedKeyword, categoryId, priceRange }),
+    () =>
+      filterBooks(books, {
+        keyword: debouncedKeyword,
+        categoryId,
+        priceRange,
+      }),
     [books, debouncedKeyword, categoryId, priceRange]
   );
 
-  const hasFilter = keyword !== "" || categoryId !== null || priceRange !== null;
+  const hasFilter =
+    keyword !== "" || categoryId !== null || priceRange !== null;
+
   const clearFilters = () => {
     setKeyword("");
     setCategoryId(null);
@@ -80,8 +114,14 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
 
   const header = (
     <View>
-      <CategoryChips categories={categories} selectedId={categoryId} onSelect={setCategoryId} />
+      <CategoryChips
+        categories={categories}
+        selectedId={categoryId}
+        onSelect={setCategoryId}
+      />
+
       <PriceFilter value={priceRange} onChange={setPriceRange} />
+
       {hasFilter && (
         <Pressable onPress={clearFilters} style={styles.clearBtn}>
           <Text style={styles.clearText}>✕ Xóa bộ lọc</Text>
@@ -92,7 +132,11 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
 
   return (
     <View style={styles.container}>
-      <Header title="📚 BookStore" onSearchPress={() => setSearchOpen((v) => !v)} />
+      <Header
+        title="📚 BookStore"
+        onSearchPress={() => setSearchOpen((v) => !v)}
+      />
+
       {searchOpen && (
         <SearchBar
           value={keyword}
@@ -111,7 +155,9 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
       ) : (
         <BookGrid
           data={visibleBooks}
-          onPressBook={(b) => navigation.navigate("BookDetail", { bookId: b.id })}
+          onPressBook={(b) =>
+            navigation.navigate("BookDetail", { bookId: b.id })
+          }
           ListHeaderComponent={header}
           ListEmptyComponent={
             <EmptyState
@@ -122,15 +168,36 @@ export function HomeScreen({ navigation, route }: TabScreenProps<"Home">) {
               onAction={clearFilters}
             />
           }
+          refreshing={refreshing}
+          onRefresh={onRefresh}
         />
       )}
-      <FloatingCartButton count={totalQuantity} onPress={() => navigation.navigate("Cart")} />
+
+      <FloatingCartButton
+        count={totalQuantity}
+        onPress={() => navigation.navigate("Cart")}
+      />
     </View>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: colors.bg },
-  clearBtn: { alignSelf: "flex-start", marginLeft: 12, marginBottom: 6, paddingHorizontal: 12, paddingVertical: 6, borderRadius: 999, backgroundColor: "#FEE2E2" },
-  clearText: { color: colors.danger, fontWeight: "700", fontSize: 12 },
+  container: {
+    flex: 1,
+    backgroundColor: colors.bg,
+  },
+  clearBtn: {
+    alignSelf: "flex-start",
+    marginLeft: 12,
+    marginBottom: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 999,
+    backgroundColor: "#FEE2E2",
+  },
+  clearText: {
+    color: colors.danger,
+    fontWeight: "700",
+    fontSize: 12,
+  },
 });

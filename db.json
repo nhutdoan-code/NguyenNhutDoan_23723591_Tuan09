@@ -278,6 +278,27 @@
       "status": "pending",
       "createdAt": "2026-11-17T11:52:30.564Z",
       "id": 4
+    },
+    {
+      "userId": 1,
+      "items": [
+        {
+          "bookId": 1,
+          "title": "Dế Mèn Phiêu Lưu Ký",
+          "price": 65000,
+          "quantity": 1
+        }
+      ],
+      "total": 65000,
+      "address": {
+        "name": "Học viên Demo",
+        "phone": "0901234567",
+        "address": "12 Nguyễn Văn Bảo"
+      },
+      "paymentMethod": "cod",
+      "status": "pending",
+      "createdAt": "2026-11-17T12:37:40.866Z",
+      "id": 5
     }
   ],
   "reviews": [
@@ -361,7 +382,7 @@
       "title": "Đơn hàng #2 đang giao",
       "body": "Đơn hàng Clean Code của bạn đang trên đường giao đến.",
       "createdAt": "2026-10-23T07:30:00.000Z",
-      "read": false,
+      "read": true,
       "target": {
         "screen": "Orders"
       }
@@ -372,7 +393,7 @@
       "title": "Sách mới: Sapiens",
       "body": "Sapiens: Lược Sử Loài Người vừa có hàng trở lại.",
       "createdAt": "2026-10-22T10:00:00.000Z",
-      "read": false,
+      "read": true,
       "target": {
         "screen": "BookDetail",
         "bookId": 7
